@@ -1,7 +1,7 @@
-% This uses ezdas.m
+% This uses ezdas.m and the MUST toolbox
 
-data = load("RcvData.mat");
-rf = data.RcvData;
+load("RcvData.mat");
+rf = RcvData;
 
 
 
@@ -38,17 +38,31 @@ vsource = [0, -10000]; % x0=steering_angle=0, z0 is large and negative
 % beta can also be calculated based on the virtual source
 
 %% Beamforming
+
+
+% Using IQ signal (MUST toolbox):
+% iq = rf2iq(rf, param);
+% [bfSIG, M] = ezdas(iq, X(:), Z(:), vsource, param);
+
+% Using Rf signal:
 [bfSIG, M] = ezdas(rf, X(:), Z(:), vsource, param);
 
 % Reshape to image dimensions
 bfImage = reshape(bfSIG, size(X));
+
+% Find the envelope
+
+% Using IQ signal:
+% envelope = abs((bfImage));
+
+% Using Rf signal:
+envelope = abs(hilbert(bfImage));
 %% Display the result
 figure('Position', [100, 100, 800, 600]);
+
 % Display in dB scale
-%envelope = abs((bfImage)); %This is the same as the line below:
-envelope = hilbert(bfImage);
-envelope = abs(envelope);
-bfImageDB = 20*log10(envelope / max(envelope(:)) + eps);
+bfImageDB = 20*log10(envelope + eps);
+bfImageDB = bfImageDB - max(bfImageDB(:));
 
 imagesc(pixelmapX, pixelmapZ, bfImageDB, [-40, 0]); 
 colormap('gray');
