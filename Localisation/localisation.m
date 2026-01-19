@@ -155,6 +155,7 @@ psf.width = 183;
 % close(gcf);
 
 %% Show 1 frame
+% The green boxes show CCs
 frame = read(simvid, 1105);
 [localisedBubbleCoords, boxes] = localisationFunc(frame, param, psf);
 figure;

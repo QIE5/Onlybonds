@@ -1,5 +1,5 @@
 function [localisedBubbleCoords, boxes] = localisationFunc (frame, param, psf)
-%% This function is partly based on:
+%% This function is partially based on:
 % EID22 | Imperial College 
 % found in https://ieeexplore.ieee.org/document/10497610
 
@@ -31,9 +31,11 @@ function [localisedBubbleCoords, boxes] = localisationFunc (frame, param, psf)
 
     %% Localisation and removal of overlapping MBs
     psfWidth = psf.width;
-    psfHeight = psf.height;
-    maxWidth = 60; % Daximum width for valid CC
-    maxHeight = 30; % Define maximum height for valid CC
+    psfHeight = psf.height; % These values can better inform min/max values below
+    maxWidth = 60; % Maximum widths for valid CCs
+    maxHeight = 30; % Maximum heights for valid CCs
+    minWidth = 20;
+    minHeight = 5;
     stats = regionprops(cc, frame, 'Area', 'WeightedCentroid', 'BoundingBox');
     bbs = reshape([stats.BoundingBox], 4, []).';
     bbWidth  = bbs(:,3);
@@ -42,7 +44,7 @@ function [localisedBubbleCoords, boxes] = localisationFunc (frame, param, psf)
     % This can later be adapted based on region, accounting for size change
     
     large = ((bbWidth > maxWidth) | (bbHeight > maxHeight)).';
-    valid = ([stats.Area]>100) & ~large;
+    valid = ((bbWidth > minWidth) | (bbHeight > minHeight)).' & ~large;
 
     validBubbles = stats(valid);
     largeBubbles = stats(large);
@@ -153,6 +155,7 @@ psf.width = 183;
 % close(gcf);
 
 %% Show 1 frame
+% The green boxes show c
 frame = read(simvid, 1105);
 [localisedBubbleCoords, boxes] = localisationFunc(frame, param, psf);
 figure;
@@ -162,8 +165,14 @@ plot(localisedBubbleCoords(:,1),localisedBubbleCoords(:,2),'b*');
 for i = 1:size(boxes, 1)
     rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
 end
-
-
-
 hold off
 title('Frame 1');
+
+%% Generate localised coordinates
+
+localisedBubbleCoords = cell(numFrames, 1);
+
+for n = 1:numFrames;
+    frame = read(simvid, n);
+    [localisedBubbleCoords{n}, boxes] = localisationFunc(frame, param, psf);
+end
