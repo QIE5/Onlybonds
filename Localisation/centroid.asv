@@ -1,8 +1,0 @@
-simVid = VideoReader('simulation.mp4');
-
-currentFrame = readFrame(simVid);
-frame = readFrame(vid);
-frame = im2gray(frameRGB);
-figure;
-imshow(frame);
-title('Frame 1');
