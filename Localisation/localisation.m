@@ -1,0 +1,177 @@
+function [localisedBubbleCoords, boxes] = localisationFunc (frame, param, psf)
+%% This function is partially based on:
+% EID22 | Imperial College 
+% found in https://ieeexplore.ieee.org/document/10497610
+
+% It generates connected components based on signals greater than a
+% threshold value. CCs do not currently take into account the sidelobes of
+% the PSF. When CCs are within a specific size range, they are deemed to be
+% from valid MBs. When CCs are too large, the checkOverlapping function
+% checks whether there are 2 distinct MB centres within the CC. If
+% possible, the 2 MB signals are identified. When CCs are too small, they
+% are discarded. regionprops. WeightedCentroid computes the weighted centre
+% of mass of all valid MBs, returning subpixel coordinates in the 
+% localisedBubbleCoords variable
+
+% Centre of mass can easily be substituted with any other localisation
+% algorithm. We can divide the image into 3 separate regions as discussed,
+% and use knowledge of the PSFs within each region to better identify valid
+% MBs, overlapping MBs, and PSF sidelobes (which were previously detected in
+% the corners of the image).
+
+
+    %% Prepare the data
+    frame = im2gray(frame);
+
+    %% Detection
+    
+    threshold = prctile(frame(:), param.threshold);
+    bw = frame > threshold; %% Binarise the image based on the threshold
+    cc = bwconncomp(bw, 8); %% Generate connected components
+
+    %% Localisation and removal of overlapping MBs
+    psfWidth = psf.width;
+    psfHeight = psf.height; % These values can better inform min/max values below
+    maxWidth = 60; % Maximum widths for valid CCs
+    maxHeight = 30; % Maximum heights for valid CCs
+    minWidth = 20;
+    minHeight = 5;
+    stats = regionprops(cc, frame, 'Area', 'WeightedCentroid', 'BoundingBox');
+    bbs = reshape([stats.BoundingBox], 4, []).';
+    bbWidth  = bbs(:,3);
+    bbHeight = bbs(:,4); 
+
+    % This can later be adapted based on region, accounting for size change
+    
+    large = ((bbWidth > maxWidth) | (bbHeight > maxHeight)).';
+    valid = ((bbWidth > minWidth) | (bbHeight > minHeight)).' & ~large;
+
+    validBubbles = stats(valid);
+    largeBubbles = stats(large);
+    % Bubbles that are too large are passed to checkOverlapping
+    [stats1, stats2] = checkOverlapping (frame, largeBubbles, threshold);
+    % stats1 = [];
+    % stats2 = [];
+    if ~isempty(stats1)
+        validBubbles(end+1) = stats1;
+        validBubbles(end+1) = stats2;
+    end
+    boxes = cat(1, validBubbles.BoundingBox);
+    localisedBubbleCoords = cat(1,validBubbles.WeightedCentroid);
+end
+
+function [stats1, stats2] = checkOverlapping (frame, large, threshold);
+    stats1 = [];
+    stats2 = [];
+    expandX = 10;
+    expandZ = 10; % These values can be adjusted based on MB geometry
+    for n=1:numel(large);
+        % For each cc, a larger region around the cc is formed. We check
+        % for regional maxima within the region to determine whether there
+        % are 2 distinct microbubbles
+        bbox = large.BoundingBox; 
+        x1 = max(1, floor(bbox(1) - expandX));
+        z1 = max(1, floor(bbox(2) - expandZ));
+        x2 = min(size(frame,2), ceil(bbox(1) + bbox(3) + expandX));
+        z2 = min(size(frame,1), ceil(bbox(2) + bbox(4) + expandZ));
+        expandedRegion = frame(z1:z2, x1:x2);
+        localMax = imregionalmax(expandedRegion);
+        validLocalMax = localMax & (expandedRegion > threshold);
+        [zRel, xRel] = find(validLocalMax);
+        zPeaks = zRel + z1 - 1; 
+        xPeaks = xRel + x1 - 1; % -1 accounts for MATLAB indexing
+        dzThresh = 30;
+        dxThresh = 30; % if 2 MB centres are further apart than
+        % these values, the signals are from 2 separate MBs
+        dz = abs(zPeaks - zPeaks(1));
+        dx = abs(xPeaks - xPeaks(1));
+        roiHalfSize = 10;
+        differentBubble = (dz > dzThresh) | (dx > dxThresh);
+        if any(differentBubble);
+            idx2 = find(differentBubble, 1, 'first');
+            x1c = round(xPeaks(1));
+            z1c = round(zPeaks(1));
+            patch1 = frame( ...
+            z1c-roiHalfSize : z1c+roiHalfSize, ...
+            x1c-roiHalfSize : x1c+roiHalfSize );
+            x2c = round(xPeaks(idx2));
+            z2c = round(zPeaks(idx2));
+            patch2 = frame( ...
+            z2c-roiHalfSize : z2c+roiHalfSize, ...
+            x2c-roiHalfSize : x2c+roiHalfSize );
+            stats1 = regionprops(true(size(patch1)), patch1, 'Area', 'WeightedCentroid', 'BoundingBox');
+            stats2 = regionprops(true(size(patch2)), patch2, 'Area', 'WeightedCentroid', 'BoundingBox');
+            subpixX1 = stats1.WeightedCentroid(1) + x1c - roiHalfSize - 1;
+            subpixZ1 = stats1.WeightedCentroid(2) + z1c - roiHalfSize - 1;
+            
+            subpixX2 = stats2.WeightedCentroid(1) + x2c - roiHalfSize - 1;
+            subpixZ2 = stats2.WeightedCentroid(2) + z2c - roiHalfSize - 1;
+            stats1.WeightedCentroid = [subpixX1, subpixZ1];
+            stats2.WeightedCentroid = [subpixX2, subpixZ2];
+            bb1 = stats1.BoundingBox;
+
+            bb1(1) = bb1(1) + x1c - roiHalfSize - 1;  % x offset
+            bb1(2) = bb1(2) + z1c - roiHalfSize - 1;  % z/y offset
+            
+            stats1.BoundingBox = bb1; 
+            bb2 = stats2.BoundingBox;
+            
+            bb2(1) = bb2(1) + x2c - roiHalfSize - 1;  % x offset
+            bb2(2) = bb2(2) + z2c - roiHalfSize - 1;  % z/y offset
+            
+            stats2.BoundingBox = bb2;
+        end
+
+     
+    end
+end
+
+simvid = VideoReader('simulation.mp4');
+numFrames = simvid.NumFrames;
+param = struct(); 
+param.threshold = 99.5;
+psf = struct();
+psf.height = 33;
+psf.width = 183;
+
+%% Reconstruct the video
+% localisedvid = VideoWriter("localised");
+% localisedvid.FrameRate = simvid.FrameRate;
+% open(localisedvid);
+% figure;
+% localisedBubbleCoords = cell(numFrames, 1);
+% 
+% for n = 1:numFrames;
+%     frame = read(simvid, n);
+%     [localisedBubbleCoords{n}, boxes] = localisationFunc(frame, param, psf);
+%     imshow(frame); hold on
+%     plot(localisedBubbleCoords{n}(:,1), localisedBubbleCoords{n}(:,2), 'r+', 'MarkerSize',6)
+%     hold off
+%     F = getframe(gcf);
+%     writeVideo(localisedvid, F);
+% end
+% 
+% close(localisedvid);
+% close(gcf);
+
+%% Show 1 frame
+frame = read(simvid, 1105);
+[localisedBubbleCoords, boxes] = localisationFunc(frame, param, psf);
+figure;
+imshow(frame);
+hold on
+plot(localisedBubbleCoords(:,1),localisedBubbleCoords(:,2),'b*');
+for i = 1:size(boxes, 1)
+    rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
+end
+hold off
+title('Frame 1');
+
+%% Generate localised coordinates
+
+localisedBubbleCoords = cell(numFrames, 1);
+
+for n = 1:numFrames;
+    frame = read(simvid, n);
+    [localisedBubbleCoords{n}, boxes] = localisationFunc(frame, param, psf);
+end
