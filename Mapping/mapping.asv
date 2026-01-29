@@ -1,0 +1,18 @@
+% simvid = VideoReader('simulation.mp4');
+% frame = read(simvid, 1);
+
+allPoints = vertcat(localisedBubbleCoords{:});  % [x z]
+allPoints = allPoints(1:20, :);
+upsample = 10;
+[H,W] = size(frame);
+
+% xEdges = linspace(1, W, W*upsample+1);
+% zEdges = linspace(1, H, H*upsample+1);
+
+SR_count = histcounts2(allPoints(:,2), allPoints(:,1), ...
+                       linspace(1, H, H*upsample+1), linspace(1, W, W*upsample+1));
+
+imagesc(log(SR_count+1))
+axis image
+colormap hot
+colorbar
