@@ -126,8 +126,9 @@ function [stats1, stats2] = checkOverlapping (frame, large, threshold);
     end
 end
 
-% simvid = VideoReader('simulation.mp4');
-% numFrames = simvid.NumFrames;
+simvid = VideoReader('simulation.mp4');
+numFrames = simvid.NumFrames;
+numFrames = 1;
 param = struct(); 
 param.threshold = 99.5;
 psf = struct();
@@ -162,7 +163,11 @@ figure;
 imshow(frame);
 hold on
 plot(localisedBubbleCoords(:,1),localisedBubbleCoords(:,2),'b*');
-for i = 1:size(boxes, 1)
+box = [4.045000000000000e+02, 1.433500000000000e+03, 59, 19];
+box = boxe
+for i = 1:size(box, 1)
+    boxes(i, :)
+    boxes(1)
     rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
 end
 hold off
@@ -171,7 +176,7 @@ title('Frame 1');
 %% Generate localised coordinates
 % numFrames = 20; % Reduced size to try tracking
 localisedBubbleCoords = cell(numFrames, 1);
-box = boxes (11, :);
+
 for n = 1:numFrames;
     frame = read(simvid, n);
     [localisedBubbleCoords{n}, boxes] = localisationFunc(frame, param, psf);

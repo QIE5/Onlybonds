@@ -1,0 +1,86 @@
+
+%%
+simvid = VideoReader('simulation.mp4');
+frame = read(simvid, 1105);
+% I will set the patch to 1.5 times the visible dimensions of the psf
+patchWidth = 180*1.5;
+patchHeight = 30*1.5;
+heightDiff = patchHeight - 22;
+widthDiff = patchWidth - 51;
+box = [4.685000000000000e+02 - widthDiff/2, 1.115500000000000e+03 - heightDiff/2, patchWidth, patchHeight]
+x = round(box(1));
+y = round(box(2));
+w = round(box(3));
+h = round(box(4));
+
+patch = frame(y:y+h-1, x:x+w-1);
+zSum = sum(patch, 1);  % Sum along rows (vertical sum)
+xSum = sum(patch, 2);    % Sum along columns (horizontal sum)
+
+zSum = zSum / max(zSum);
+xSum = xSum / max(xSum);
+
+zHalf = find(zSum > 0.5);
+xHalf = find(xSum > 0.5);
+
+zFwhm = zHalf(end) - zHalf(1) + 1;
+xFwhm = xHalf(end) - xHalf(1) + 1;
+sigmaZ = zFwhm * (2 * sqrt(2 * log(2))); % The relationship between FWHM and standard deviation
+sigmaX = xFwhm * (2 * sqrt(2 * log(2)));
+
+x1 = -x/2:10:x/2;
+x2 = -y/2:10:y/2;
+[X1,X2] = meshgrid(x1,x2);
+X = [X1(:) X2(:)];
+% normalPsf = exp(-X.^2/(2*sigmaX^2) - Z.^2/(2*sigmaZ^2));
+% normalPsf = normalPsf/max(normalPsf(:));
+mu = [0 0];
+covarMat = [sigmaX^2 0; 0 sigmaZ^2]; % Set cov (X,Z) = 0 as PSF is symmetrical
+normalPsf = mvnpdf(X,mu,covarMat);
+normalPsf = normalPsf / max(normalPsf);
+psfTemplate = reshape(normalPsf,length(x2),length(x1));
+figure;
+imshow(patch, []);
+% figure;
+% imshow(frame);
+% hold on
+% rectangle('Position', box, 'EdgeColor', 'g', 'LineWidth', 1);
+% hold off
+% title('Frame 1');
+
+%%
+function [localisedBubbleCoords, boxes] = localisationFunc (frame, param, psfTemplate)
+    frame = im2gray(frame);
+
+    %% Detection
+    
+    threshold = prctile(frame(:), param.threshold);
+    bw = frame > threshold; %% Binarise the image based on the threshold
+    cc = bwconncomp(bw, 4) %% Generate connected components
+    stats = regionprops(cc, frame, 'Area', 'WeightedCentroid', 'BoundingBox');
+    boxes = cat(1, stats.BoundingBox);
+    localisedBubbleCoords = [];
+    c = normxcorr2(psfTemplate, bw);
+    c = c > 0.4;
+    surf(double(c
+th = size(template,1);
+tw = size(template,2);
+
+c_valid = c(th:end-th+1, tw:end-tw+1);
+
+    shading flat
+    stats = regionprops(c, frame, 'Area', 'WeightedCentroid', 'BoundingBox')
+end
+
+param = struct(); 
+param.threshold = 99.5;
+
+[localisedBubbleCoords, boxes] = localisationFunc(frame, param, psfTemplate);
+figure;
+imshow(frame);
+hold on
+for i = 1:size(boxes, 1)
+    rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
+end
+hold off
+title('Frame 1');
