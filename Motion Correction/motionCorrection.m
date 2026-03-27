@@ -16,7 +16,7 @@ function [correctedFrames] = motionCorrection(v)
     
     % Store shifts for smoothing
     totalFrames = floor(v.Duration * v.FrameRate);
-    totalFrames = 10;
+    totalFrames = 10; %% remove this line for full pipeline
     shifts = zeros(totalFrames, 2);
     
     % 2. Calculate Shifts (First Pass)

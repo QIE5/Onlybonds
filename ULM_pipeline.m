@@ -1,10 +1,10 @@
 %%
 
 function [beamformedImage, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam)
+    numFrames = 10;
     beamformedImage = beamform(rawSig, beamformParam, 'SignalType', beamformParam.signal);
     correctedFrames = motionCorrection(bubbleVid);
-    % numFrames = bubbleVid.NumFrames; 
-    numFrames = 10;
+    % numFrames = size(correctedFrames, 4);
     localisedBubbleCoords = cell(numFrames, 1);
     for n = 1:numFrames;
         frame = correctedFrames(:, :, :, n);
