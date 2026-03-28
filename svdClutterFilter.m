@@ -10,13 +10,13 @@ X=reshape(frame,S,T); %3D sequence to 2D Casorati matrix X
 %if S>>T then use temporal covariance
 C = (X'*X); %dimension is T*T
 % Eigen-decomposition: C=V*D*V' and S*S=VΣ^2V^*
-[V, D] = eig(C, 'vector'); %eig(c)to return eigenvector and eigenvalue, use vector to return vector instead of diagonal matrix
+[V,D] = eig(C, 'vector'); %eig(c)to return eigenvector and eigenvalue, use vector to return vector instead of diagonal matrix
 %sorting, because we need to eliminate the first few items with largerst energy 
-[Dsorted, idx] = sort(real(D), 'descend');%idx=index map
-V = V(:, idx); %column indexing to make V line up with D
+[Dsorted,idx] = sort(real(D), 'descend');%idx=index map
+V = V(:,idx); %column indexing to make V line up with D
 
 
-sigma = sqrt(max(Dsorted, 0));%or use sigma =sqrt(Dsorted)
+sigma = sqrt(max(Dsorted,0));%or use sigma =sqrt(Dsorted)
 epsSigma = 1e-12; %make a lower limit so no NaN or Inf occur
 invSigma = 1./max(sigma, epsSigma); %1/sigma use./ because Element wise division
 U = X * (V .* invSigma.'); %most important part:Compute U implicitly: U = S * V * inv(Sigma)
@@ -40,3 +40,9 @@ Sf=Uf * diag(sigmaf)*Vf'; %or use Uf * (sigmaf .* (Vf'))
 stack_filt = reshape(Sf, [H,W,T]);%reshape back
 end
 
+%the use of function should be:
+%[stack_static, db_static] =run_static_filter(beamformed_data(:,:,1:100));first 100frame
+%export_filtered_video(db_static, 'static_nCut4.mp4', -35, 15);
+
+%[stack_moving, db_moving] =run_moving_filter(beamformed_data2(:,:,1:100));first 100frame
+%export_filtered_video(db_moving, 'moving_nCut5.mp4', -30, 15);
