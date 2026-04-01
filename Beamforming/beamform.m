@@ -49,8 +49,8 @@ function [bfImageDB] = beamform(rawSIG, beamformParam, varargin)
 
     bfImageDB = 20*log10(envelope + eps);
     bfImageDB = bfImageDB - max(bfImageDB(:));
-
-    end
+    bfInt = mat2gray(bfImageDB, [-40 0]) * 255;
+end
 
 % This uses ezdas.m and the MUST toolbox
 

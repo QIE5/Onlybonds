@@ -1,10 +1,11 @@
-function [correctedFrames] = motionCorrection(v)
+function [correctedFrames] = motionCorrection(frames)
     % outputFile = 'stabilized_final.mp4';
     % vOut = VideoWriter(outputFile, 'MPEG-4');
     % vOut.FrameRate = v.FrameRate;
     % open(vOut);
     % 1. Setup Reference
-    refFrame = im2gray(readFrame(v));
+    % refFrame = im2gray(readFrame(v));
+    refFrame = frames(:,:, 1);
     [rows, cols] = size(refFrame);
     refFrameD = double(refFrame);
     
@@ -15,16 +16,17 @@ function [correctedFrames] = motionCorrection(v)
     fftRef = fft2(refFrameD .* win);
     
     % Store shifts for smoothing
-    totalFrames = floor(v.Duration * v.FrameRate);
-    totalFrames = 10; %% remove this line for full pipeline
+    % totalFrames = floor(v.Duration * v.FrameRate);
+    totalFrames = size(frames, 3);
     shifts = zeros(totalFrames, 2);
     
     % 2. Calculate Shifts (First Pass)
-    v.CurrentTime = 0;
+    % v.CurrentTime = 0;
     fprintf('Analyzing motion...\n');
     for i = 1:totalFrames
-        if ~hasFrame(v), break; end
-        curr = double(im2gray(readFrame(v)));
+        % if ~hasFrame(v), break; end
+        % curr = double(im2gray(readFrame(v)));
+        curr = double(im2gray(frames(:,:,i)));
         
         % Phase Correlation
         fftCurr = fft2(curr .* win);
@@ -73,8 +75,9 @@ function [correctedFrames] = motionCorrection(v)
     cropMargin = maxExcursion + 5; 
     rect = [cropMargin, cropMargin, cols - 2*cropMargin, rows - 2*cropMargin];
     
-    v.CurrentTime = 0;
-    tempFrame = readFrame(v);
+    % v.CurrentTime = 0;
+    % tempFrame = readFrame(v);
+    tempFrame = refFrame;
     tempCorrected = imtranslate(tempFrame, shifts(1, :), 'linear', 'OutputView', 'same');
     tempFinal = imcrop(tempCorrected, rect);
     [finalH, finalW, channels] = size(tempFinal);
@@ -83,8 +86,8 @@ function [correctedFrames] = motionCorrection(v)
     fprintf('Applying stabilization...\n');
     
     for i = 1:totalFrames
-        if ~hasFrame(v), break; end
-        frame = readFrame(v);
+        % if ~hasFrame(v), break; end
+        frame = refFrame;
         
         % Translate and Crop
         % Sub-pixel precision is handled by imtranslate
@@ -97,9 +100,3 @@ function [correctedFrames] = motionCorrection(v)
     % close(vOut);
     disp('Done! Video is now rock-solid.');
 end
-
-% 
-% inputFile = 'moving_background.mp4';
-% outputFile = 'stabilized_final.mp4';
-% 
-% motionCorrection(inputFile, outputFile);

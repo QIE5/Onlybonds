@@ -22,10 +22,9 @@ function [localisedBubbleCoords, boxes] = localisation (frame, localisationParam
 
 
     %% Prepare the data
-    frame = im2gray(frame);
+    % frame = im2gray(frame);
 
     %% Detection
-    
     threshold = prctile(frame(:), localisationParam.threshold);
     bw = frame > threshold; %% Binarise the image based on the threshold
     cc = bwconncomp(bw, 8); %% Generate connected components

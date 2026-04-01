@@ -1,13 +1,17 @@
 %%
 
-function [beamformedImage, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam)
-    numFrames = 10;
+function [beamformedImage, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam, beamformed_data)
+    numFrames = 21;
     beamformedImage = beamform(rawSig, beamformParam, 'SignalType', beamformParam.signal);
-    correctedFrames = motionCorrection(bubbleVid);
+    [stack_moving, db_moving] = run_moving_filter(beamformed_data(:,:,1:numFrames));
+    filteredFrames = im2uint8(mat2gray(db_moving, [-40 0]));
+    % correctedFrames = motionCorrection(bubbleVid);
+    correctedFrames = motionCorrection(filteredFrames);
     % numFrames = size(correctedFrames, 4);
     localisedBubbleCoords = cell(numFrames, 1);
     for n = 1:numFrames;
         frame = correctedFrames(:, :, :, n);
+        frame = im2gray(frame);
         [localisedBubbleCoords{n}, boxes] = localisation(frame, localisationParam);
     end
     % [tracks, adjacency_tracks, A] = simpletracker(localisedBubbleCoords, ...
@@ -19,9 +23,55 @@ function [beamformedImage, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamfor
         'MeasurementNoise', 4, ...
         'InitialVelocityVariance', 100, ...
         'MinTrackLength', 2);
-    tracks
     [SR_img, BW] = mapping(frame, localisedBubbleCoords, tracks, adjacency_tracks, A);
 end
+% function [beamformedImage, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam)
+%     numFrames = 10;
+%     beamformedImage = beamform(rawSig, beamformParam, 'SignalType', beamformParam.signal);
+%     correctedFrames = motionCorrection(bubbleVid);
+%     for n = 1:numFrames
+%         frame = correctedFrames(:, :, :, n);
+%         frame = im2gray(frame);
+% 
+%     frames(:,:,n) = frame;
+%     end
+%     % stack_moving = svdClutterFilter(frames, 5, 0);
+%     [stack_moving, db_moving, int_moving] = run_moving_filter(frames);
+%     stack_static = svdClutterFilter(frames, 4, 0);
+% env = abs(stack_static);
+% env = env / max(env(:));
+% db = 20*log10(env + eps);
+% 
+% imagesc(db(:,:,1), [-35 0]);
+% colormap gray;
+% axis image off;
+% title('Static frame 1'); 
+%     SR_img = int_moving;
+%     % correctedFrames = motionCorrection(bubbleVid);
+%     % numFrames = size(correctedFrames, 4);
+%     localisedBubbleCoords = cell(numFrames, 1);
+%     for n = 1:numFrames;
+%         % frame = correctedFrames(:, :, :, n);
+%         % frame = read(bubbleVid, n);
+%         % frame = im2gray(frame);
+%         % frame = db_moving{n}
+%         frame = int_moving(:, :, n);
+%         [localisedBubbleCoords{n}, boxes] = localisation(frame, localisationParam);
+%     end
+%     frame = read(bubbleVid, 1);
+%     BW = im2gray(frame);
+%     % [tracks, adjacency_tracks, A] = simpletracker(localisedBubbleCoords, ...
+%     % 'Method', 'Hungarian');
+%     % [tracks, adjacency_tracks, A] = kalmanHungarianTracker(localisedBubbleCoords, ...
+%     %     'MaxGapClosing', 3, ...
+%     %     'MaxLinkingDistance', 30, ...
+%     %     'ProcessNoise', 10, ...
+%     %     'MeasurementNoise', 4, ...
+%     %     'InitialVelocityVariance', 100, ...
+%     %     'MinTrackLength', 2);
+%     % [SR_img, BW] = mapping(frame, localisedBubbleCoords, tracks, adjacency_tracks, A);
+% 
+% end
 
 
 %% Pipeline folders
@@ -31,6 +81,7 @@ addpath(fullfile(rootDir, 'Beamforming'));
 addpath(fullfile(rootDir, 'Localisation'));
 addpath(fullfile(rootDir, 'Mapping'));
 addpath(fullfile(rootDir, 'Motion Correction'));
+addpath(fullfile(rootDir, 'SVD'));
 addpath(fullfile(rootDir, 'Tracking'));
 
 
@@ -69,21 +120,22 @@ localisationParam.psfWidth = 183;
 
 load("RcvData.mat");
 rawSig = RcvData;
-bubbleVid = VideoReader('simulation.mp4');
-[bfImageDB, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam);
+% bubbleVid = VideoReader('simulation.mp4');
+bubbleVid = VideoReader('moving_background.mp4');
+[bfImageDB, SR_img, BW] = ULMPipeline (rawSig, bubbleVid, beamformParam, localisationParam, beamformed_data);
 
-%% Display the result
-figure('Position', [100, 100, 800, 600]);
-
-% Display in dB scale
-
-imagesc(beamformParam.pixelmapX, beamformParam.pixelmapZ, bfImageDB, [-40, 0]); 
-colormap('gray');
-colorbar;
-xlabel('Lateral Distance (m)');
-ylabel('Axial Distance (m)');
-title('DAS Beamformed Image');
-axis image;
+% %% Display the result
+% figure('Position', [100, 100, 800, 600]);
+% 
+% % Display in dB scale
+% 
+% image = imagesc(beamformParam.pixelmapX, beamformParam.pixelmapZ, bfImageDB, [-40, 0]); 
+% colormap('gray');
+% colorbar;
+% xlabel('Lateral Distance (m)');
+% ylabel('Axial Distance (m)');
+% title('DAS Beamformed Image');
+% axis image;
 %% Final image
 figure;
 subplot(1,2,1);

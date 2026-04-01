@@ -1,4 +1,3 @@
-%%
 simvid = VideoReader('simulation.mp4');
 frame = read(simvid, 1105);
 % I will set the patch to 1.5 times the visible dimensions of the psf
@@ -9,8 +8,8 @@ widthDiff = patchWidth - 51;
 box = [4.685000000000000e+02 - widthDiff/2, 1.115500000000000e+03 - heightDiff/2, patchWidth, patchHeight]
 x = round(box(1));
 y = round(box(2));
-w = round(box(3));
-h = round(box(4));
+w = patchWidth;
+h = patchHeight;
 
 patch = frame(y:y+h-1, x:x+w-1);
 xSum = sum(patch, 1);  % Sum along rows (vertical sum)
@@ -43,6 +42,8 @@ imshow(psfTemplate, []);
 title('PSF');
 figure;
 imshow(frame);
+
+impixelinfo;
 hold on
 rectangle('Position', box, 'EdgeColor', 'g', 'LineWidth', 1);
 hold off
@@ -72,11 +73,12 @@ param = struct();
 param.threshold = 99.5;
 
 [localisedBubbleCoords, boxes] = localisationFunc(frame, param, psfTemplate);
-figure;
-imshow(frame);
-hold on
-for i = 1:size(boxes, 1)
-    rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
-end
-hold off
-title('Frame 1');
+% figure;
+% imshow(frame);
+% 
+% hold on
+% % for i = 1:size(boxes, 1)
+% %     rectangle('Position', boxes(i, :), 'EdgeColor', 'g', 'LineWidth', 1);
+% % end
+% hold off
+% title('Frame 1');
