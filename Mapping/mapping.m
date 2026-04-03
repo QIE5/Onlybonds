@@ -53,3 +53,5 @@ end
 % subplot(1,2,2);
 % imshow(BW);
 % title('Reconstructed Vessel');
+
+% Can overlay on B-mode image

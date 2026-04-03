@@ -7,6 +7,7 @@ pixelSize = 3.3879*1e-5;
 lambda/4 > pixelSize; % This returns true, so discretation is enough
 
 
+% simvid = VideoReader('simulation.mp4');
 simvid = VideoReader('simulation.mp4');
 
 %% Locate 3 different microbubbles, 1 for each region in the frame. Run 
@@ -24,6 +25,8 @@ figure;
 imshow(frame1);
 impixelinfo;
 hold on
+
+%% Simulation.mp4 microbubbles
 bubble1 = [508,1068]; % Frame 1
 plot(bubble1(1), bubble1(2), 'b*');
 bubble2 = [435,1489]; % Frame 30
@@ -49,7 +52,6 @@ plot ([bubble3(1) - 70 ,bubble3(1) + 40], [bubble3(2), bubble3(2)], 'r-'); % PSF
 psfWidth3 = 110;
 psfHeight3 = 24;
 
-title('Frame 1');
 %% Find the template based on psf dimensions
 function [psfTemplate, box] = findPsfTemplate (frame, psfWidth, psfHeight, bubbleX, bubbleY)
     patchWidth = psfWidth*1.5;

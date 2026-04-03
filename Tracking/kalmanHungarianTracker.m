@@ -1,4 +1,4 @@
-function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin)
+function [tracks, adjacency_tracks, A, trackStructs, trackingInfo] = kalmanHungarianTracker(points, varargin)
 % KALMANHUNGARIANTRACKER
 % Kalman prediction + Hungarian assignment tracker for ULM pipeline.
 %
@@ -395,4 +395,14 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
 
     %% Unassigned targets
     unassigned_targets = setdiff((1:n_target_points).', target_indices(target_indices > 0));
+
+    %% Additional output variables for velocity calculations:
+    trackStructs = finishedTracks;
+    trackingInfo = struct();
+    trackingInfo.n_slices = n_slices;
+    trackingInfo.n_cells = n_cells;
+    trackingInfo.offsets = offsets;
+    trackingInfo.n_total_cells = n_total_cells;
+    trackingInfo.parameters = p.Results;
+
 end
