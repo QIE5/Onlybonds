@@ -1,4 +1,4 @@
-function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin)
+function [tracks, adjacency_tracks, A, velocity_tracks, speed_tracks] = kalmanHungarianTracker(points, varargin)
 % KALMANHUNGARIANTRACKER
 % Kalman prediction + Hungarian assignment tracker for ULM pipeline.
 %
@@ -10,6 +10,8 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
 %   tracks            : cell array, each track is n_frames x 1
 %   adjacency_tracks  : cell array of global point indices
 %   A                 : sparse adjacency matrix over concatenated points
+%   velocity_tracks   : cell array, each track is n_frames x 2, [vx vy]
+%   speed_tracks      : cell array, each track is n_frames x 1, speed magnitude
 %
 % Optional key/value pairs:
 %   'Debug'                  : false by default
@@ -46,6 +48,8 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
         tracks = cell(0,1);
         adjacency_tracks = cell(0,1);
         A = sparse(0,0);
+        velocity_tracks = cell(0,1);
+        speed_tracks = cell(0,1);
         return;
     end
 
@@ -67,7 +71,7 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
 
     %% Kalman model
     % State = [x; y; vx; vy]
-    % Here dt is treated as 1 frame.
+    % dt is treated as 1 frame
     F = [1 0 1 0;
          0 1 0 1;
          0 0 1 0;
@@ -92,7 +96,8 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
         'totalVisibleCount', 0, ...
         'consecutiveInvisibleCount', 0, ...
         'globalIndices', [], ...
-        'frameIndices', [] ...
+        'frameIndices', [], ...
+        'velocityHistory', [] ...
     );
 
     activeTracks   = repmat(emptyTrack, 0, 1);
@@ -132,7 +137,7 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
             predictedPositions(i,:) = activeTracks(i).state(1:2).';
         end
 
-        %% Hungarian assignment between predicted positions and current detections
+        %% Hungarian assignment
         [assignedPairs, unassignedTrackIdx, unassignedDetIdx] = ...
             hungarianAssign(predictedPositions, detections, max_linking_distance);
 
@@ -152,6 +157,7 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
             globalIdx = offsets(frameIdx) + dIdx;
             activeTracks(tIdx).globalIndices(end+1,1) = globalIdx;
             activeTracks(tIdx).frameIndices(end+1,1) = frameIdx;
+            activeTracks(tIdx).velocityHistory(end+1,:) = activeTracks(tIdx).state(3:4).';
         end
 
         %% Mark unmatched tracks as invisible
@@ -188,6 +194,7 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
             tr.consecutiveInvisibleCount = 0;
             tr.globalIndices = offsets(frameIdx) + dIdx;
             tr.frameIndices = frameIdx;
+            tr.velocityHistory = [0 0];
 
             activeTracks(end+1,1) = tr; %#ok<AGROW>
             nextTrackID = nextTrackID + 1;
@@ -209,6 +216,8 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
         tracks = cell(0,1);
         adjacency_tracks = cell(0,1);
         A = sparse(n_total_cells, n_total_cells);
+        velocity_tracks = cell(0,1);
+        speed_tracks = cell(0,1);
         return;
     end
 
@@ -222,10 +231,12 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
         tracks = cell(0,1);
         adjacency_tracks = cell(0,1);
         A = sparse(n_total_cells, n_total_cells);
+        velocity_tracks = cell(0,1);
+        speed_tracks = cell(0,1);
         return;
     end
 
-    %% Sort tracks by first frame, then first global index
+    %% Sort tracks
     sortKey = zeros(numel(finishedTracks), 2);
     for i = 1:numel(finishedTracks)
         sortKey(i,1) = finishedTracks(i).frameIndices(1);
@@ -238,6 +249,8 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
     n_tracks = numel(finishedTracks);
     tracks = cell(n_tracks,1);
     adjacency_tracks = cell(n_tracks,1);
+    velocity_tracks = cell(n_tracks,1);
+    speed_tracks = cell(n_tracks,1);
 
     rows = [];
     cols = [];
@@ -245,15 +258,24 @@ function [tracks, adjacency_tracks, A] = kalmanHungarianTracker(points, varargin
     for i = 1:n_tracks
         adj = finishedTracks(i).globalIndices(:);
         frs = finishedTracks(i).frameIndices(:);
+        vel = finishedTracks(i).velocityHistory;
 
         adjacency_tracks{i} = adj;
 
         tr = NaN(n_slices,1);
+        vel_tr = NaN(n_slices,2);
+        spd_tr = NaN(n_slices,1);
+
         for j = 1:numel(adj)
             fr = frs(j);
             tr(fr) = adj(j) - offsets(fr);
+            vel_tr(fr,:) = vel(j,:);
+            spd_tr(fr) = sqrt(sum(vel(j,:).^2));
         end
+
         tracks{i} = tr;
+        velocity_tracks{i} = vel_tr;
+        speed_tracks{i} = spd_tr;
 
         if numel(adj) >= 2
             rows = [rows; adj(1:end-1)]; %#ok<AGROW>
@@ -335,7 +357,6 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
     n_source_points = size(source, 1);
     n_target_points = size(target, 1);
 
-    %% Edge cases
     if n_source_points == 0
         target_indices = zeros(0,1);
         target_distances = zeros(0,1);
@@ -352,7 +373,6 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
         return;
     end
 
-    %% Build distance matrix
     D = NaN(n_source_points, n_target_points);
 
     for i = 1:n_source_points
@@ -362,10 +382,8 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
         D(i, :) = square_dist;
     end
 
-    %% Apply max linking distance
     D(D > max_distance * max_distance) = Inf;
 
-    %% If nothing is matchable, do not call munkres
     if all(isinf(D(:)))
         target_indices = -1 * ones(n_source_points, 1);
         target_distances = NaN(n_source_points, 1);
@@ -374,17 +392,14 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
         return;
     end
 
-    %% Check munkres availability
     if exist('munkres', 'file') ~= 2
         error(['munkres.m not found. The Hungarian assignment in this tracker ' ...
-               'requires the same munkres implementation used by the original simple tracker.']);
+               'requires same munkres implementation used by the original simple tracker.']);
     end
 
-    %% Hungarian solve
     [target_indices, total_cost] = munkres(D);
     target_indices(target_indices == 0) = -1;
 
-    %% Distances
     target_distances = NaN(numel(target_indices), 1);
     for i = 1:numel(target_indices)
         if target_indices(i) < 0
@@ -393,6 +408,5 @@ function [target_indices, target_distances, unassigned_targets, total_cost] = ..
         target_distances(i) = sqrt(D(i, target_indices(i)));
     end
 
-    %% Unassigned targets
     unassigned_targets = setdiff((1:n_target_points).', target_indices(target_indices > 0));
 end
