@@ -4,11 +4,6 @@ function stack_filt = svdClutterFilter(frame,nCut,nNoiseCut)
 %perform SVD,remove low-rank (tissue clutter) or high-rank (noise) components
 %and then reconstruct the frames
 frame = im2double(frame); %linear calculation so use double
-
-if ndims(frame) ~= 3
-    error('Input frame must be a 3D stack of size H x W x T.');
-end
-
 [H,W,T]=size(frame);
 S=H*W;
 X=reshape(frame,S,T); %3D sequence to 2D Casorati matrix X
@@ -42,12 +37,13 @@ sigmaf = sigma(keep);
 Sf=Uf * diag(sigmaf)*Vf'; %or use Uf * (sigmaf .* (Vf'))
 
 
-stack_filt = reshape(Sf, [H,W,T]);%reshape back
-
-%Safety check:replace invalid values with zero to avoid NaN to piepline
-badMask = ~isfinite(real(stack_filt)) | ~isfinite(imag(stack_filt));
-stack_filt(badMask) = 0;
-
+stack_filt = reshape(Sf, [H,W,T]); %reshape back
+[H,W,T]
 end
 
+%the use of function should be:
+%[stack_static, db_static] =run_static_filter(beamformed_data(:,:,1:100));first 100frame
+%export_filtered_video(db_static, 'static_nCut4.mp4', -35, 15);
 
+%[stack_moving, db_moving] =run_moving_filter(beamformed_data2(:,:,1:100));first 100frame
+%export_filtered_video(db_moving, 'moving_nCut5.mp4', -30, 15);

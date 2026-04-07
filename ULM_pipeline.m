@@ -1,8 +1,9 @@
-function [beamformedImage, SR_img, BW, tracks, stack_filt] = ULMPipeline (rawSig, bubbleVid, ...
+function [beamformedImage, srImg, velImg] = ULMPipeline (rawSig, bubbleVid, ...
     beamformParam, svdParam, motionCorrectionParam, localisationParam, ...
     trackingParam, velocityParam)
-    numFrames = 5;
-    % numFrames = bubbleVid.NumFrames;
+    numFrames = 21;
+    numFrames = bubbleVid.NumFrames;
+    frameRate = bubbleVid.FrameRate;
     firstFrame = readFrame (bubbleVid);
     firstFrame = im2gray(firstFrame);
 
@@ -48,7 +49,7 @@ function [beamformedImage, SR_img, BW, tracks, stack_filt] = ULMPipeline (rawSig
         [tracks, adjacency_tracks, A] = simpletracker(localisedBubbleCoords, ...
         'Method', 'Hungarian');
     elseif strcmp(trackingParam.method, 'Kalman and Hungarian')
-        [tracks, adjacency_tracks, A, trackStructs, trackingInfo] = kalmanHungarianTracker(localisedBubbleCoords, ...
+        [tracks, adjacency_tracks, A, trackStructs, offsets] = kalmanHungarianTracker1(localisedBubbleCoords, ...
             'MaxGapClosing', 3, ...
             'MaxLinkingDistance', 30, ...
             'ProcessNoise', 10, ...
@@ -57,11 +58,11 @@ function [beamformedImage, SR_img, BW, tracks, stack_filt] = ULMPipeline (rawSig
             'MinTrackLength', 2);
     end
     if strcmp(velocityParam.method, 'Velocity')
-        [velocity, location, weight] = estimateTrackVelocity(tracks, ...
-    localisedBubbleCoords, offsets, frameRate);
-
+        
+        [velocity, location, weight] = estimateTrackVelocity(trackStructs, ...
+            localisedBubbleCoords, offsets, frameRate);
     end
-    [SR_img, BW] = mapping(frame, localisedBubbleCoords, tracks, adjacency_tracks, A);
+    [srImg, velImg] = mapping(frame, localisedBubbleCoords, adjacency_tracks, velocity, location, weight, frameRate);
 end
 
 %% Pipeline folders
@@ -128,14 +129,14 @@ localisationParam.psfTemplates = {psfTemplate1, psfTemplate2, psfTemplate3};
 trackingParam.method = 'Kalman and Hungarian';
 % trackingParam.method = 'None';
 %% Velocity parameters
-
-velocityParam.method = 'None';
+velocityParam.method = 'Velocity';
+% velocityParam.method = 'None';
 %% Run the pipeline
 load("RcvData.mat");
 rawSig = RcvData;
-bubbleVid = VideoReader('simulation.mp4');
-% bubbleVid = VideoReader('moving_background.mp4');
-[bfImageDB, SR_img, BW, tracks, stack_filt] = ULMPipeline (rawSig, bubbleVid, beamformParam, ...
+% bubbleVid = VideoReader('simulation.mp4');
+bubbleVid = VideoReader('static_background_clutter_filterd.mp4');
+[bfImageDB, srImg, velImg] = ULMPipeline (rawSig, bubbleVid, beamformParam, ...
     svdParam, motionCorrectionParam, localisationParam, trackingParam, ...
     velocityParam);
 
@@ -153,11 +154,86 @@ bubbleVid = VideoReader('simulation.mp4');
 % axis image;
 %% Final image
 figure;
-subplot(1,2,1);
-imagesc(log(SR_img + 1));
-axis image off; colormap hot;
-title('ULM Density Map');
+validMask = velImg.validMask;
 
-subplot(1,2,2);
-imshow(BW);
-title('Reconstructed Vessel');
+%% Structure
+subplot(2,3,1);
+imagesc(log(srImg + 1));
+axis image off; colormap(gca, hot);
+title('Density');
+
+hold on;
+
+% --- Scale bar (20 pixels = 1 µm) ---
+barWidthPx = (1e-3) / pixelSize;
+% barLength = 20;  % pixels
+
+% Position (bottom-left corner)
+xStart = 15;
+yStart = size(srImg,1) - 10;
+
+% Draw line
+plot([xStart, xStart + barWidthPx], [yStart, yStart], ...
+    'w', 'LineWidth', 2);
+
+% % Label
+% text(xStart + barLength/2, yStart - 40, '1 \mum', ...
+%     'Color', 'w', ...
+%     'HorizontalAlignment', 'center', ...
+%     'VerticalAlignment', 'top', ...
+%     'FontSize', 8);
+
+hold off;
+%% Speed
+subplot(2,3,2);
+maxS = prctile(velImg.speed(validMask), 99);
+if isempty(maxS) || maxS == 0, maxS = 1; end
+h = imagesc(velImg.speed, [0 maxS]);
+axis image off; 
+colormap(gca, turbo(256));
+set(h, 'AlphaData', double(validMask));
+colorbar; title('Speed');
+
+%% Velocity X
+subplot(2,3,3);
+maxVx = prctile(abs(velImg.vx(validMask)), 99);
+if isempty(maxVx) || maxVx == 0, maxVx = 1; end
+h = imagesc(velImg.vx, [-maxVx maxVx]);
+axis image off; set(gca, 'Color', 'k');
+colormap(gca, parula(256));
+set(h, 'AlphaData', double(validMask));
+colorbar; title('Velocity X');
+
+%% Velocity Y
+subplot(2,3,4);
+maxVy = prctile(abs(velImg.vy(validMask)), 99);
+if isempty(maxVy) || maxVy == 0, maxVy = 1; end
+h = imagesc(velImg.vy, [-maxVy maxVy]);
+axis image off; set(gca, 'Color', 'k');
+colormap(gca, parula(256));
+set(h, 'AlphaData', double(validMask));
+colorbar; title('Velocity Y');
+
+%% Direction
+subplot(2,3,5);
+H = (velImg.direction + pi) / (2*pi);
+S = ones(size(H));
+V = double(validMask);
+RGB = hsv2rgb(cat(3, H, S, V));
+image(RGB); axis image off;
+title('Direction');
+
+%% Colour wheel
+subplot(2,3,6);
+nw = 200;
+[x,y] = meshgrid(linspace(-1,1,nw));
+r = sqrt(x.^2 + y.^2);
+theta = atan2(y,x);
+Hw = (theta+pi)/(2*pi);
+Sw = ones(size(Hw));
+Vw = double(r <= 1);
+wheel = hsv2rgb(cat(3,Hw,Sw,Vw));
+image(wheel); axis image off;
+title('Direction key', 'FontSize', 8);
+
+

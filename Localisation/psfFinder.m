@@ -1,87 +1,50 @@
-%% Discretation calculations
-% ≥0.5λ in the lateral direction , ≥ 0.25λ in the axial direction.
-fc = 2.0*1e6;
-c = 1540;
-lambda = c /fc; % λ = c / f
-pixelSize = 3.3879*1e-5;
-lambda/4 > pixelSize; % This returns true, so discretation is enough
-
 %% Locate 3 different microbubbles, 1 for each region in the frame. Run 
-% the code using an appropriate frame. Then, use 
+% the code using a selected reference frame. Then, use 
 % the centre coordinates (from centroids) and approximate width and height 
 % of the bubbles. Continue to re-run code until all 3 bubbles are 
 % approximated. These properties are used to form a psfTemplate for each 
 % region. Use the psfTemplates to run crossCorrelation.m
 
+%% PSF info block
+% Insert the respective block of code from psfStorage.m. The code block 
+% must include: simvid, refFrame1, refFrame2, at least 1 bubble, psf 
+% dimensions for each bubble
 
-
-% Simulation.mp4 microbubbles
-simvid = VideoReader('simulation.mp4');
-refFrame1 = read(simvid, 1);
-refFrame2 = read(simvid, 30);
+% Clutter filter video
+simvid = VideoReader('static_background_clutter_filterd.mp4');
+refFrame1 = read(simvid, 70);
+refFrame2 = read(simvid, 140);
 figure;
 imshow(refFrame1);
-impixelinfo;
+title ('Display PSF regions')
 hold on
-bubble1 = [508,1068]; % Frame 1
-plot(bubble1(1), bubble1(2), 'b*');
-bubble2 = [435,1489]; % Frame 30
-% plot(bubble2(1), bubble2(2), 'b*');
-bubble3 = [534, 2232]; % Frame 1
-plot(bubble3(1), bubble3(2), 'b*');
 
-% The lines below are drawn through the centre of the selected MB.
-% They represent the dimensions of the MB
 % Bubble 1
-plot ([bubble1(1) - 100 ,bubble1(1) + 100], [bubble1(2), bubble1(2)], 'r-'); % PSF width = 200
-plot ([bubble1(1), bubble1(1)], [ bubble1(2) + 15,bubble1(2) - 15], 'g-'); % height = 30
-psfWidth1 = 200;
-psfHeight1 = 30;
-% Bubble 2, frame 30
-plot ([bubble2(1) - 85 ,bubble2(1) + 85], [bubble2(2), bubble2(2)], 'r-'); % PSF width = 170
-plot ([bubble2(1), bubble2(1)], [ bubble2(2) + 14,bubble2(2) - 14], 'g-'); % height = 28
-psfWidth2 = 170;
-psfHeight2 = 28;
-% Bubble 3
-plot ([bubble3(1) - 70 ,bubble3(1) + 40], [bubble3(2), bubble3(2)], 'r-'); % PSF width = 110
-% plot ([bubble3(1), bubble3(1)], [ bubble3(2) + 12,bubble3(2) - 12], 'g-'); % height = 24
-psfWidth3 = 110;
-psfHeight3 = 24;
+bubble1 = [113,44]; % Frame 70
+plot(bubble1(1), bubble1(2), 'b*');
+plot ([bubble1(1) - 35 ,bubble1(1) + 35], [bubble1(2), bubble1(2)], 'r-'); % PSF width = 70
+plot ([bubble1(1), bubble1(1)], [ bubble1(2) + 6,bubble1(2) - 6], 'g-'); % height = 12
+psfWidth1 = 70;
+psfHeight1 = 12;
 
-%% Clutter filter video
-% simvid = VideoReader('static_background_clutter_filterd.mp4');
-% refFrame1 = read(simvid, 70);
-% refFrame2 = read(simvid, 140);
-% figure;
-% imshow(refFrame1);
-% impixelinfo;
-% hold on
-% 
-% % Bubble 1
-% bubble1 = [113,44]; % Frame 70
-% plot(bubble1(1), bubble1(2), 'b*');
-% plot ([bubble1(1) - 35 ,bubble1(1) + 35], [bubble1(2), bubble1(2)], 'r-'); % PSF width = 70
-% plot ([bubble1(1), bubble1(1)], [ bubble1(2) + 6,bubble1(2) - 6], 'g-'); % height = 12
-% psfWidth1 = 70;
-% psfHeight1 = 12;
-% 
-% % Bubble 2
-% bubble2 = [94,151]; % Frame 70
-% plot(bubble2(1), bubble2(2), 'b*');
-% % Bubble 2, frame 140
-% plot ([bubble2(1) - 34 ,bubble2(1) + 34], [bubble2(2), bubble2(2)], 'r-'); % PSF width = 64
-% plot ([bubble2(1), bubble2(1)], [ bubble2(2) + 6,bubble2(2) - 6], 'g-'); % height = 12
-% psfWidth2 = 64;
-% psfHeight2 = 12;
-% 
-% % Bubble 3
-% bubble3 = [82,244]; % Frame 70
-% plot(bubble3(1), bubble3(2), 'b*');
-% plot ([bubble3(1) - 34 ,bubble3(1) + 34], [bubble3(2), bubble3(2)], 'r-'); % PSF width = 68
-% plot ([bubble3(1), bubble3(1)], [ bubble3(2) + 6,bubble3(2) - 5], 'g-'); % height = 11
-% psfWidth3 = 68;
-% psfHeight3 = 11;
-%% Find the template based on psf dimensions, comment out this section to locate centroids
+% Bubble 2
+bubble2 = [94,151]; % Frame 70
+plot(bubble2(1), bubble2(2), 'b*');
+% Bubble 2, frame 140
+plot ([bubble2(1) - 34 ,bubble2(1) + 34], [bubble2(2), bubble2(2)], 'r-'); % PSF width = 64
+plot ([bubble2(1), bubble2(1)], [ bubble2(2) + 6,bubble2(2) - 6], 'g-'); % height = 12
+psfWidth2 = 64;
+psfHeight2 = 12;
+
+% Bubble 3
+bubble3 = [82,244]; % Frame 70
+plot(bubble3(1), bubble3(2), 'b*');
+plot ([bubble3(1) - 34 ,bubble3(1) + 34], [bubble3(2), bubble3(2)], 'r-'); % PSF width = 68
+plot ([bubble3(1), bubble3(1)], [ bubble3(2) + 6,bubble3(2) - 5], 'g-'); % height = 11
+psfWidth3 = 68;
+psfHeight3 = 11;
+
+%% This function determines the psfTemplate based on psf dimensions
 function [psfTemplate, box] = findPsfTemplate (frame, psfWidth, psfHeight, bubbleX, bubbleY)
     patchWidth = psfWidth*1.5;
     patchHeight = psfHeight*1.5;
@@ -127,42 +90,54 @@ function [psfTemplate, box] = findPsfTemplate (frame, psfWidth, psfHeight, bubbl
     normalPsf = normalPsf / max(normalPsf);
     psfTemplate = reshape(normalPsf,length(x2),length(x1));
 end
+
+% Run the function above, entering psf dimensions and bubble centroids
 [psfTemplate1, box1] = findPsfTemplate (refFrame1, psfWidth1, psfHeight1, bubble1(1), bubble1(2));
 [psfTemplate2, box2] = findPsfTemplate (refFrame2, psfWidth2, psfHeight2, bubble2(1), bubble2(2));
 [psfTemplate3, box3] = findPsfTemplate (refFrame1, psfWidth3, psfHeight3, bubble3(1), bubble3(2));
-
-
 
 rectangle('Position', box1, 'EdgeColor', 'g', 'LineWidth', 1);
 rectangle('Position', box2, 'EdgeColor', 'g', 'LineWidth', 1);
 rectangle('Position', box3, 'EdgeColor', 'g', 'LineWidth', 1);
 hold off
 
-%%
-    refFrame1 = im2gray(refFrame1);
-    threshold = prctile(refFrame1(:), 99);  % top 1% intensities, arbitrarily selected to include starburst
-    regionalMax = imregionalmax(refFrame1);
-    % bw = frame > threshold;
-    bw = regionalMax & (refFrame1 > threshold);
-    % [xPeaks, yPeaks] = find(bw)
-    
+%% Centroid block
+% Use this function to find the centroid locations of all MBs in 1 frame.
+% Select an appropriate MB, and approximate its dimensions in the PSF info
+% block
+
+function [centroids] = locateCentroids (refFrame)
+    refFrame = im2gray(refFrame);
+    threshold = prctile(refFrame(:), 99);  % top 1% intensities, arbitrarily selected to include starburst
+    regionalMax = imregionalmax(refFrame);
+    bw = regionalMax & (refFrame > threshold);
     cc = bwconncomp(bw, 8);
-    centroids = regionprops(cc, refFrame1, 'WeightedCentroid');
+    centroids = regionprops(cc, refFrame, 'WeightedCentroid');
+end
+% Locate centroids in the reference frame
+% refFrame = refFrame1; % Use the line below to pick an appropriate frame
+refFrame = read(simvid, 70);
+centroids = locateCentroids(refFrame1);
+figure;
+imshow(refFrame)
+impixelinfo;
+title('Find Bubble Centres')
 
 
 
-%%
-% centroids = centroidCell{1};
-% figure;
-% imshow(frame1);
-% hold on
-% plot(centroids(:,1),centroids(:,2),'b*');
-% hold off
-% title('Frame 1');
 
-% close(localisedvid);
-% close(gcf);
+
 
 
 
 %lsqcurvefit
+
+
+
+%% Discretation calculations, ignore for the most part
+% ≥0.5λ in the lateral direction , ≥ 0.25λ in the axial direction.
+fc = 2.0*1e6;
+c = 1540;
+lambda = c /fc; % λ = c / f
+pixelSize = 3.3879*1e-5;
+lambda/4 > pixelSize; % This returns true, so discretation is enough

@@ -1,63 +1,50 @@
-function [velocity, location, weight] = estimateTrackVelocityLocal (tracks, ...
-    localisedBubbleCoords, offsets, frameRate);
+function [velocity, location, weight] = estimateTrackVelocity(trackStructs, points, offsets, frameRate)
+% ESTIMATETRACKVELOCITYLOCAL Compute velocity for each track using linear regression
+%
+% INPUT:
+%   trackStructs : struct array from kalmanHungarianTracker
+%   points       : cell array, one cell per frame, each cell is N x 2 [x y]
+%   offsets      : array of global index offsets per frame
+%   frameRate    : acquisition frame rate in Hz
+%
+% OUTPUT:
+%   velocity : n_tracks x 2 array [vx vy] in units/second
+%   location : n_tracks x 2 array [x y], track centroid
+%   weight   : n_tracks x 1 array, track length (number of detections)
 
-    % Preallocate
-    numTracks = numel(tracks);
-    velocity = NaN(numTracks, 2);
-    location = NaN(numTracks, 2);
-    weight = zeros(numTracks, 1);
+    nTracks = numel(trackStructs);
+    velocity = zeros(nTracks, 2);
+    location = zeros(nTracks, 2);
+    weight = zeros(nTracks, 1);
     
-    for i = 1:numTracks
-        n_pts = numel(tracks(i).frameIndices);
-        i_start = max(1, floor(0.1*n_pts));
-        i_end   = min(n_pts, ceil(0.9*n_pts));
-        use_range = i_start:i_end;
+    for i = 1:nTracks
+        frameIndices = trackStructs(i).frameIndices;
+        globalIndices = trackStructs(i).globalIndices;
+        nPts = numel(frameIndices);
         
-        if numel(use_range) >= 3
-            frames_use = finishedTracks(i).frameIndices(use_range);
-            global_use = finishedTracks(i).globalIndices(use_range);
-            
-            % Extract positions
-            pos_use = zeros(numel(frames_use), 2);
-            for j = 1:numel(frames_use)
-                fr = frames_use(j);
-                localIdx = global_use(j) - offsets(fr);
-                pos_use(j,:) = points{fr}(localIdx, :);
-            end
-            
-            % Convert to time
-            t = frames_use / frame_rate;
-            
-            % Robust linear fit
-            px = robustfit(t, pos_use(:,1));
-            py = robustfit(t, pos_use(:,2));
-            
-            vx = px(2);
-            vy = py(2);
-            
-            % Residual-based weight
-            res_x = pos_use(:,1) - (px(1) + px(2)*t);
-            res_y = pos_use(:,2) - (py(1) + py(2)*t);
-            fit_error = mean(res_x.^2 + res_y.^2);
-            
-            % Store results
-            velocity(i,:) = [vx, vy];
-            
-            % Location at temporal midpoint
-            t_mid = mean(t);
-            location(i,:) = [px(1) + px(2)*t_mid, py(1) + py(2)*t_mid];
-            
-            weight(i) = numel(use_range) / (fit_error + eps);
+        % Extract positions
+        pos = zeros(nPts, 2);
+        for j = 1:nPts
+            fr = frameIndices(j);
+            localIdx = globalIndices(j) - offsets(fr);
+            pos(j, :) = points{fr}(localIdx, :);
         end
+        
+        % Convert frames to time
+        t = frameIndices / frameRate;
+        
+        % Linear fit: position = a + b*t, where b is velocity
+        px = polyfit(t, pos(:, 1), 1);
+        py = polyfit(t, pos(:, 2), 1);
+        
+        % Extract velocity (slope)
+        velocity(i, :) = [px(1), py(1)];
+        
+        % Location at temporal midpoint
+        tMid = mean(t);
+        location(i, :) = [polyval(px, tMid), polyval(py, tMid)];
+        
+        % Weight by track length
+        weight(i) = nPts;
     end
-    
-    % Remove invalid tracks
-    valid = ~isnan(velocity(:,1));
-    velocity = velocity(valid, :);
-    location = location(valid, :);
-    weight = weight(valid);
-    
-    % Normalize weights (optional)
-    weight = weight / median(weight);
-    
 end

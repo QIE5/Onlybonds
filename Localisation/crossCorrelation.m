@@ -1,8 +1,8 @@
 function [localisedBubbleCoords] = crossCorrelation(frame, localisationParam)
-    % frame = im2gray(frame);
-    viableY = 10; % Hard-coded, where the bubbles start on the 
+% function [localisedBubbleCoords] = crossCorrelationLocal(frame, localisationParam)
+    viableY = 1; % Hard-coded, where the bubbles start on the 
     % frame. Ideally, we should only be passing the relevant part of the 
-    % frame into the function.
+    % frame into the function. Minimum value is 1.
 
     %% Detection
     
@@ -35,14 +35,17 @@ function [localisedBubbleCoords] = crossCorrelation(frame, localisationParam)
     
 end
 
-%% Uncomment to run code locally
-% bubbleVid = VideoReader('simulation.mp4');
+% Uncomment to run code locally
+% % bubbleVid = VideoReader('simulation.mp4');
+% bubbleVid = VideoReader('static_background_clutter_filterd.mp4');
+% 
 % numFrames = bubbleVid.NumFrames;
-% frame = read(bubbleVid, 10);
+% frame = read(bubbleVid, 200);
+% frame = im2gray(frame);
 % localisationParam.psfTemplates = {psfTemplate1, psfTemplate2, psfTemplate3};
 % [localisedBubbleCoords] = crossCorrelationLocal(frame, localisationParam);
-
-%% View singular frame
+% 
+% % View singular frame
 % figure;
 % imshow(frame);
 % hold on
@@ -61,6 +64,7 @@ end
 % 
 % for n = 1:numFrames
 %     frame = read(bubbleVid, n);
+%     frame = im2gray(frame);
 %     [localisedBubbleCoords{n}] = crossCorrelationLocal(frame, localisationParam);
 % 
 %     imshow(frame, 'Parent', ax); hold(ax, 'on');
