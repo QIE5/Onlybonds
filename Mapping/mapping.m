@@ -12,10 +12,11 @@ function [srImg, velImg] = mapping(frame, localisedBubbleCoords, adjacency_track
 %
 % OUTPUT:
 %   srImg  : super-resolved density image
-%   velImg : struct with .vx, .vy, .speed, .direction, .validMask
+%   velImg : struct with .vx, .vy, .speed (pixels/frame), .direction, .validMask
+
 
     scale = 1;
-    filterSigma = 1.5;  % Gaussian smoothing sigma in pixels
+    filterSigma = 1;  % Gaussian smoothing sigma in pixels
 
     [H, W] = size(frame);
     xEdges = linspace(1, W, scale*W + 1);

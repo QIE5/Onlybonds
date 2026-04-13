@@ -5,49 +5,73 @@
 % approximated. These properties are used to form a psfTemplate for each 
 % region. Use the psfTemplates to run crossCorrelation.m
 
+% Frame thresholding
+function [frameOut] = thresholding (frameIn)
+    frameIn = im2gray(frameIn);
+    threshold = prctile(frameIn(:), 95);
+    frameOut = frameIn;
+    frameOut(frameIn <= threshold) = 0;
+end
+
 %% PSF info block
 % Insert the respective block of code from psfStorage.m. The code block 
 % must include: simvid, refFrame1, refFrame2, at least 1 bubble, psf 
 % dimensions for each bubble
 
-% Clutter filter video
-simvid = VideoReader('static_background_clutter_filterd.mp4');
-refFrame1 = read(simvid, 70);
-refFrame2 = read(simvid, 140);
+
+%% CEUS Stable1
+simvid = VideoReader('Phantom Videos/CEUS_Stable1.mp4');
+numframes = simvid.NumFrames;
+refFrame1 = read(simvid, 1);
+refFrame1 = thresholding(refFrame1);
+refFrame1 = im2gray(refFrame1);
+refFrame2 = read(simvid, 270);
+refFrame2 = thresholding(refFrame2);
+refFrame3 = read(simvid, 390);
+refFrame3 = thresholding(refFrame3);
+
+displayFrame = refFrame1; % Pick the display frame
 figure;
-imshow(refFrame1);
+imshow(displayFrame);
+impixelinfo;
+zoom on;
 title ('Display PSF regions')
 hold on
 
+
 % Bubble 1
-bubble1 = [113,44]; % Frame 70
+bubble1 = [362,605]; % refFrame3
 plot(bubble1(1), bubble1(2), 'b*');
-plot ([bubble1(1) - 35 ,bubble1(1) + 35], [bubble1(2), bubble1(2)], 'r-'); % PSF width = 70
-plot ([bubble1(1), bubble1(1)], [ bubble1(2) + 6,bubble1(2) - 6], 'g-'); % height = 12
-psfWidth1 = 70;
-psfHeight1 = 12;
+psfWidth1 = 60;
+psfHeight1 = 18;
+plot ([bubble1(1) - psfWidth1/2 ,bubble1(1) + psfWidth1/2], [bubble1(2), bubble1(2)], 'r-'); 
+plot ([bubble1(1), bubble1(1)], [ bubble1(2) + psfHeight1/2,bubble1(2) - psfHeight1/2], 'g-');
 
 % Bubble 2
-bubble2 = [94,151]; % Frame 70
+bubble2 = [662,604]; % refFrame2
 plot(bubble2(1), bubble2(2), 'b*');
-% Bubble 2, frame 140
-plot ([bubble2(1) - 34 ,bubble2(1) + 34], [bubble2(2), bubble2(2)], 'r-'); % PSF width = 64
-plot ([bubble2(1), bubble2(1)], [ bubble2(2) + 6,bubble2(2) - 6], 'g-'); % height = 12
-psfWidth2 = 64;
-psfHeight2 = 12;
+psfWidth2 = 70;
+psfHeight2 = 24;
+plot ([bubble2(1) - psfWidth2/2 ,bubble2(1) + psfWidth2/2], [bubble2(2), bubble2(2)], 'r-');%
+plot ([bubble2(1), bubble2(1)], [ bubble2(2) + psfHeight2/2,bubble2(2) - psfHeight2/2], 'g-'); 
+
+
 
 % Bubble 3
-bubble3 = [82,244]; % Frame 70
+bubble3 = [1206,665]; % Frame 810, refFrame1
 plot(bubble3(1), bubble3(2), 'b*');
-plot ([bubble3(1) - 34 ,bubble3(1) + 34], [bubble3(2), bubble3(2)], 'r-'); % PSF width = 68
-plot ([bubble3(1), bubble3(1)], [ bubble3(2) + 6,bubble3(2) - 5], 'g-'); % height = 11
-psfWidth3 = 68;
-psfHeight3 = 11;
-
+psfWidth3 = 26;
+psfHeight3 = 14;
+plot ([bubble3(1) - psfWidth3/2 ,bubble3(1) + psfWidth3/2], [bubble3(2), bubble3(2)], 'r-'); % PSF width = 70
+plot ([bubble3(1), bubble3(1)], [ bubble3(2) + psfHeight3/2,bubble3(2) - psfHeight3/2], 'g-'); % height = 14
 %% This function determines the psfTemplate based on psf dimensions
 function [psfTemplate, box] = findPsfTemplate (frame, psfWidth, psfHeight, bubbleX, bubbleY)
-    patchWidth = psfWidth*1.5;
-    patchHeight = psfHeight*1.5;
+    % patchWidth = psfWidth*1.5;
+    % patchHeight = psfHeight*1.5;
+    % patchWidth = psfWidth*1.2;
+    % patchHeight = psfHeight*1.2;
+    patchWidth = psfWidth;
+    patchHeight = psfHeight;
     heightDiff = (patchHeight - psfHeight)/2;
     widthDiff = (patchWidth - psfWidth)/2;
     x = bubbleX - (psfWidth)/2 - widthDiff;
@@ -55,14 +79,6 @@ function [psfTemplate, box] = findPsfTemplate (frame, psfWidth, psfHeight, bubbl
     w = patchWidth;
     h = patchHeight;
     box = [x,y, w, h];
-    % box = [4.685000000000000e+02, 1.115500000000000e+03, patchWidth, patchHeight]
-    % box = [4.685000000000000e+02, 1.115500000000000e+03, patchWidth, patchHeight]
-    % x = round(box(1));
-    % y = round(box(2));
-    % w = round(box(3));
-    % h = round(box(4));
-    y
-    h
     patch = frame(y:y+h-1, x:x+w-1);
     xSum = sum(patch, 1);  % Sum along rows (vertical sum)
     zSum = sum(patch, 2);    % Sum along columns (horizontal sum)
@@ -106,22 +122,15 @@ hold off
 % Select an appropriate MB, and approximate its dimensions in the PSF info
 % block
 
-function [centroids] = locateCentroids (refFrame)
-    refFrame = im2gray(refFrame);
-    threshold = prctile(refFrame(:), 99);  % top 1% intensities, arbitrarily selected to include starburst
-    regionalMax = imregionalmax(refFrame);
-    bw = regionalMax & (refFrame > threshold);
-    cc = bwconncomp(bw, 8);
-    centroids = regionprops(cc, refFrame, 'WeightedCentroid');
-end
+
 % Locate centroids in the reference frame
 % refFrame = refFrame1; % Use the line below to pick an appropriate frame
-refFrame = read(simvid, 70);
-centroids = locateCentroids(refFrame1);
-figure;
-imshow(refFrame)
-impixelinfo;
-title('Find Bubble Centres')
+
+
+% figure;
+% imshow(refFrame)
+% impixelinfo;
+% title('Find Bubble Centres')
 
 
 
