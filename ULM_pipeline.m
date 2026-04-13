@@ -1,9 +1,9 @@
 function [beamformedImage, srImg, velImg] = ULMPipeline (rawSig, bubbleVid, ...
-    beamformParam, svdParam, motionCorrectionParam, localisationParam, ...
+    constantsParam, beamformParam, svdParam, motionCorrectionParam, localisationParam, ...
     trackingParam, velocityParam)
-    numFrames = 21;
+    % numFrames = 21;
     numFrames = bubbleVid.NumFrames;
-    frameRate = bubbleVid.FrameRate;
+    frameRate = constantsParam.frameRate;  % Hz 
     firstFrame = readFrame (bubbleVid);
     firstFrame = im2gray(firstFrame);
 
@@ -75,8 +75,15 @@ addpath(fullfile(rootDir, 'Motion Correction'));
 addpath(fullfile(rootDir, 'SVD'));
 addpath(fullfile(rootDir, 'Tracking'));
 
+%% ULM constants
+constantsParam = struct();
+% constantsParam.pixelSize = 3.3879*1e-5; % m % Simulation
+constantsParam.pixelSize = 3.0800e-05; % m % Phantom
+% constantsParam.frameRate = 400; % Hz, Simulation
+constantsParam.frameRate = 40; % Phantom
 
 %% Beamforming parameters: Transducer parameters   
+beamformParam = struct();
 % beamformParam.method = 'DAS';
 beamformParam.method = 'None';
 beamformParam.signal = 'RF';
@@ -135,105 +142,120 @@ velocityParam.method = 'Velocity';
 load("RcvData.mat");
 rawSig = RcvData;
 % bubbleVid = VideoReader('simulation.mp4');
-bubbleVid = VideoReader('static_background_clutter_filterd.mp4');
-[bfImageDB, srImg, velImg] = ULMPipeline (rawSig, bubbleVid, beamformParam, ...
-    svdParam, motionCorrectionParam, localisationParam, trackingParam, ...
-    velocityParam);
+% bubbleVid = VideoReader('static_background_clutter_filterd.mp4');
+bubbleVid = VideoReader('Phantom Videos/CEUS_Stable1.mp4');
+[bfImageDB, srImg, velImg] = ULMPipeline (rawSig, bubbleVid, ...
+    constantsParam, beamformParam, svdParam, motionCorrectionParam, ...
+    localisationParam, trackingParam, velocityParam);
 
-% %% Display the result
-% figure('Position', [100, 100, 800, 600]);
-% 
-% % Display in dB scale
-% 
-% image = imagesc(beamformParam.pixelmapX, beamformParam.pixelmapZ, bfImageDB, [-40, 0]); 
-% colormap('gray');
-% colorbar;
-% xlabel('Lateral Distance (m)');
-% ylabel('Axial Distance (m)');
-% title('DAS Beamformed Image');
-% axis image;
-%% Final image
-figure;
+
+
+
+pixelSize = constantsParam.pixelSize;
+
 validMask = velImg.validMask;
 
-%% Structure
-subplot(2,3,1);
-imagesc(log(srImg + 1));
-axis image off; colormap(gca, hot);
-title('Density');
+%% ============================================================
+% 1. PHYSICAL COORDINATE SYSTEM
+% ============================================================
+
+W = size(srImg, 2);
+H = size(srImg, 1);
+
+dx = pixelSize;
+dz = pixelSize;
+
+xAxis_mm = ((1:W) - 0.5) * dx * 1e3;
+zAxis_mm = ((1:H) - 0.5) * dz * 1e3;
+
+%% ============================================================
+% 2. STRUCTURE IMAGE
+% ============================================================
+
+figure;
+imagesc(xAxis_mm, zAxis_mm, log(srImg + 1));
+axis image off;
+colormap(gca, hot);
 
 hold on;
 
-% --- Scale bar (20 pixels = 1 µm) ---
-barWidthPx = (1e-3) / pixelSize;
-% barLength = 20;  % pixels
+barLength_mm = 10;
 
-% Position (bottom-left corner)
-xStart = 15;
-yStart = size(srImg,1) - 10;
+xMin_mm = min(xAxis_mm);
+xMax_mm = max(xAxis_mm);
+zMin_mm = min(zAxis_mm);
+zMax_mm = max(zAxis_mm);
 
-% Draw line
-plot([xStart, xStart + barWidthPx], [yStart, yStart], ...
-    'w', 'LineWidth', 2);
+x0 = xMin_mm + 0.05 * (xMax_mm - xMin_mm);
+y0 = zMax_mm - 0.05 * (zMax_mm - zMin_mm);
 
-% % Label
-% text(xStart + barLength/2, yStart - 40, '1 \mum', ...
-%     'Color', 'w', ...
-%     'HorizontalAlignment', 'center', ...
-%     'VerticalAlignment', 'top', ...
-%     'FontSize', 8);
+plot([x0, x0 + barLength_mm], [y0, y0], 'w', 'LineWidth', 3);
+plot([x0, x0], [y0, y0 - barLength_mm], 'w', 'LineWidth', 3);
 
 hold off;
-%% Speed
-subplot(2,3,2);
-maxS = prctile(velImg.speed(validMask), 99);
-if isempty(maxS) || maxS == 0, maxS = 1; end
-h = imagesc(velImg.speed, [0 maxS]);
-axis image off; 
+
+%% ============================================================
+% 3. SPEED (mm/s)
+% ============================================================
+
+figure;
+
+vx_mm = velImg.vx * dx * 1e3;
+vz_mm = velImg.vy * dz * 1e3;
+
+speed = hypot(vx_mm, vz_mm);
+
+maxS = prctile(speed(validMask), 99);
+if isempty(maxS) || maxS == 0
+    maxS = 1;
+end
+
+normalized = speed / maxS;
+normalized = max(0, min(1, normalized));
+
+cmap = turbo(256);
+idx = round(normalized * 255) + 1;
+RGBspeed = ind2rgb(idx, cmap);
+RGBspeed(repmat(~validMask, [1 1 3])) = 0;
+
+image(xAxis_mm, zAxis_mm, RGBspeed);
+axis image off;
 colormap(gca, turbo(256));
-set(h, 'AlphaData', double(validMask));
-colorbar; title('Speed');
+set(gca, 'CLim', [0 maxS]);
+colorbar;
 
-%% Velocity X
-subplot(2,3,3);
-maxVx = prctile(abs(velImg.vx(validMask)), 99);
-if isempty(maxVx) || maxVx == 0, maxVx = 1; end
-h = imagesc(velImg.vx, [-maxVx maxVx]);
-axis image off; set(gca, 'Color', 'k');
-colormap(gca, parula(256));
-set(h, 'AlphaData', double(validMask));
-colorbar; title('Velocity X');
+%% ============================================================
+% 4. DIRECTION MAP
+% ============================================================
 
-%% Velocity Y
-subplot(2,3,4);
-maxVy = prctile(abs(velImg.vy(validMask)), 99);
-if isempty(maxVy) || maxVy == 0, maxVy = 1; end
-h = imagesc(velImg.vy, [-maxVy maxVy]);
-axis image off; set(gca, 'Color', 'k');
-colormap(gca, parula(256));
-set(h, 'AlphaData', double(validMask));
-colorbar; title('Velocity Y');
-
-%% Direction
-subplot(2,3,5);
-H = (velImg.direction + pi) / (2*pi);
-S = ones(size(H));
+figure;
+Hdir = (velImg.direction + pi) / (2*pi);
+S = ones(size(Hdir));
 V = double(validMask);
-RGB = hsv2rgb(cat(3, H, S, V));
-image(RGB); axis image off;
-title('Direction');
+RGB = hsv2rgb(cat(3, Hdir, S, V));
+image(xAxis_mm, zAxis_mm, RGB);
+axis image off;
 
-%% Colour wheel
-subplot(2,3,6);
+%% ============================================================
+% 5. COLOUR WHEEL
+% ============================================================
+
+figure;
+
 nw = 200;
 [x,y] = meshgrid(linspace(-1,1,nw));
+
 r = sqrt(x.^2 + y.^2);
 theta = atan2(y,x);
-Hw = (theta+pi)/(2*pi);
+
+Hw = (theta + pi)/(2*pi);
 Sw = ones(size(Hw));
 Vw = double(r <= 1);
+
 wheel = hsv2rgb(cat(3,Hw,Sw,Vw));
-image(wheel); axis image off;
-title('Direction key', 'FontSize', 8);
+
+h = image(wheel);
+axis image off;
+set(h, 'AlphaData', double(r <= 1));
 
 
